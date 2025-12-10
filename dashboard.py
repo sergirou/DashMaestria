@@ -148,6 +148,13 @@ def cargar_datos():
     else:
         df_final['IMC'] = np.nan
 
+    # Normalizar nombre de columna 'Sexo'
+    if 'Sexo' not in df_final.columns:
+        for col in df_final.columns:
+            if col.lower().strip() == 'sexo':
+                df_final = df_final.rename(columns={col: 'Sexo'})
+                break
+
     le_sexo = LabelEncoder()
     if 'Sexo' in df_final.columns:
         df_final['Sexo'] = df_final['Sexo'].fillna('Desconocido')
@@ -155,6 +162,13 @@ def cargar_datos():
     else:
         df_final['Sexo'] = 'Desconocido'
         df_final['Sexo_Num'] = 0
+
+    # Normalizar nombre de columna 'Edad'
+    if 'Edad' not in df_final.columns:
+        for col in df_final.columns:
+            if col.lower().strip() == 'edad':
+                df_final = df_final.rename(columns={col: 'Edad'})
+                break
 
     if '¿En los últimos 3 días has dormido al menos 7 horas de forma regular?' in df_final.columns:
         df_final['Sueño_Bien'] = df_final['¿En los últimos 3 días has dormido al menos 7 horas de forma regular?'].apply(lambda x: 1 if str(x).strip().lower() in ['si','sí','s'] else 0)
