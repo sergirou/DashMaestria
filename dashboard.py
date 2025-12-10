@@ -31,30 +31,24 @@ st.markdown("""
 
 @st.cache_data
 def cargar_datos():
-    """Carga datos de encuesta y térmicos desde archivos si existen.
-    Busca varios nombres comunes y hace fallback a datos de ejemplo.
-    """
-    df_encuesta = None
-
-    posibles_encuestas = [
-        'Monitoreo_de_Fatiga.xlsx',
-        'monitoreo_de_fatiga.xlsx'
-    ]
-
-    for f in posibles_encuestas:
-        if os.path.exists(f):
+    """Carga datos desde Datos_Termicos.xlsx con mapeo automático de columnas."""
+    
+    # Intentar cargar desde archivo existente
+    df = None
+    archivos_posibles = ['Datos_Termicos.xlsx', 'datos_termicos.xlsx', 'Monitoreo_de_Fatiga.xlsx']
+    
+    for archivo in archivos_posibles:
+        if os.path.exists(archivo):
             try:
-                if f.lower().endswith('.csv'):
-                    df_encuesta = pd.read_csv(f)
-                else:
-                    df_encuesta = pd.read_excel(f)
-                st.info(f"Cargando datos de encuesta desde: {f}")
+                df = pd.read_excel(archivo)
+                st.info(f"Cargando datos desde: {archivo}")
                 break
             except Exception as e:
-                st.warning(f"Error leyendo {f}: {e}")
-
-    if df_encuesta is None:
-        # Datos de ejemplo si no hay archivo
+                st.warning(f"Error leyendo {archivo}: {e}")
+    
+    # Si no se cargó archivo, usar datos de ejemplo
+    if df is None:
+        st.warning("No se encontraron archivos de datos; usando ejemplo.")
         data_dict = {
             'Folio': ['F-001', 'F-002', 'F-003', 'F-004', 'F-005', 'F-006'],
             'Edad': [22, 25, 19, 28, 21, 24],
@@ -71,121 +65,80 @@ def cargar_datos():
                 'Algo fatigado(a), me falta recuperar un poco más.'
             ]
         }
-        df_encuesta = pd.DataFrame(data_dict)
-
-    # Cargar datos térmicos
-    datos_termicos = None
-    posibles_termicos = ['Datos_Termicos.xlsx', 'datos_termicos.xlsx', 'datos_termicos.csv']
-    for f in posibles_termicos:
-        if os.path.exists(f):
-            try:
-                if f.lower().endswith('.csv'):
-                    datos_termicos = pd.read_csv(f)
-                else:
-                    datos_termicos = pd.read_excel(f)
-                st.info(f"Cargando datos térmicos desde: {f}")
-                break
-            except Exception as e:
-                st.warning(f"Error leyendo {f}: {e}")
-
-    if datos_termicos is None:
-        datos_termicos = pd.DataFrame({
-            'Folio': ['F-001', 'F-002', 'F-003', 'F-004', 'F-005', 'F-006'],
-            'T_Max_Basal': [34.4, 33.5, 34.0, 33.8, 34.2, 33.9],
-            'T_Max_Post': [34.2, 35.5, 33.8, 35.0, 35.2, 36.1],
-            'T_Max_Rec': [35.3, 34.8, 34.5, 34.5, 34.9, 35.8],
-            'Temp_Ambiente': [11.5, 12.0, 11.8, 12.5, 11.2, 12.1],
-            'Humedad': [14.5, 15.0, 16.2, 14.8, 15.5, 16.0]
-        })
-
-    # Normalizar nombres de columna y detectar identificador alternativo
-    # Normalizar lowercase 'folio'
-    if 'Folio' not in df_encuesta.columns and 'folio' in df_encuesta.columns:
-        df_encuesta = df_encuesta.rename(columns={'folio': 'Folio'})
-
-    # Si no existe 'Folio', intentar detectar otras columnas que representen el ID
-    possible_id_cols = ['Folio', 'ID', 'Id', 'id', 'Codigo', 'codigo', 'Código']
-    if 'Folio' not in df_encuesta.columns:
-        for col in possible_id_cols:
-            if col in df_encuesta.columns:
-                df_encuesta = df_encuesta.rename(columns={col: 'Folio'})
-                st.info(f"Usando columna '{col}' como identificador (renombrada a 'Folio')")
-                break
-
-    if 'Folio' not in datos_termicos.columns and 'folio' in datos_termicos.columns:
-        datos_termicos = datos_termicos.rename(columns={'folio': 'Folio'})
-
-    if 'Folio' not in datos_termicos.columns:
-        for col in possible_id_cols:
-            if col in datos_termicos.columns:
-                datos_termicos = datos_termicos.rename(columns={col: 'Folio'})
-                st.info(f"Usando columna '{col}' en datos térmicos como identificador (renombrada a 'Folio')")
-                break
-
-    # Mapear columnas ambientales comunes a nombres estándar
-    # Temp_Ambiente: 'Temperatura ambiente', 'Temperatura Ambiente', 'Temp_Ambiente', etc.
-    # Humedad: 'Humedad Relativa', 'Humedad Realtiva', 'Humedad', etc.
-    rename_map = {}
-    for col in datos_termicos.columns:
-        col_lower = col.lower().strip()
-        if 'temperatura' in col_lower and 'ambiente' in col_lower and 'Temp_Ambiente' not in datos_termicos.columns:
-            rename_map[col] = 'Temp_Ambiente'
-        elif ('humedad' in col_lower or 'huedad' in col_lower) and 'Humedad' not in datos_termicos.columns:
-            rename_map[col] = 'Humedad'
-    if rename_map:
-        datos_termicos = datos_termicos.rename(columns=rename_map)
-
-    # Si después de esto no hay columna 'Folio' en df_encuesta, emitir advertencia y devolver df_encuesta sin merge
-    if 'Folio' not in df_encuesta.columns:
-        st.error("No se encontró una columna identificadora ('Folio' o equivalente) en los datos de encuesta. Verifica el archivo.")
-        return df_encuesta
-
-    df_final = pd.merge(df_encuesta, datos_termicos, on='Folio', how='left')
-
+        df = pd.DataFrame(data_dict)
+    
+    # MAPEO DE COLUMNAS: nombres exactos del Excel → nombres esperados en el código
+    mapeo_columnas = {
+        'Folio': 'Folio',
+        'Edad': 'Edad',
+        'Sexo': 'Sexo',
+        'Altura (en cm)': 'Altura (en cm)',
+        'Peso (en kg)': 'Peso (en kg)',
+        '¿En los últimos 3 días has dormido al menos 7 horas de forma regular?': 'Sueño_Col',
+        '¿Cómo te sientes después del período de recuperación?': 'Recuperacion_Col',
+        'Temperatura ambiente (°C)': 'Temp_Ambiente',
+        'Humedad Realtiva (%)': 'Humedad',
+    }
+    
+    # Aplicar mapeo: si existe la columna original, renombrarla
+    rename_dict = {}
+    for col_original, col_nuevo in mapeo_columnas.items():
+        if col_original in df.columns:
+            rename_dict[col_original] = col_nuevo
+    
+    if rename_dict:
+        df = df.rename(columns=rename_dict)
+    
+    # Rellenar valores faltantes de Edad y Sexo
+    if 'Edad' not in df.columns:
+        df['Edad'] = 0
+    else:
+        df['Edad'] = pd.to_numeric(df['Edad'], errors='coerce').fillna(0).astype(int)
+    
+    if 'Sexo' not in df.columns:
+        df['Sexo'] = 'Desconocido'
+    else:
+        df['Sexo'] = df['Sexo'].fillna('Desconocido')
+    
+    if 'Altura (en cm)' not in df.columns:
+        df['Altura (en cm)'] = 0
+    else:
+        df['Altura (en cm)'] = pd.to_numeric(df['Altura (en cm)'], errors='coerce').fillna(0)
+    
+    if 'Peso (en kg)' not in df.columns:
+        df['Peso (en kg)'] = 0
+    else:
+        df['Peso (en kg)'] = pd.to_numeric(df['Peso (en kg)'], errors='coerce').fillna(0)
+    
+    if 'Temp_Ambiente' not in df.columns:
+        df['Temp_Ambiente'] = np.nan
+    else:
+        df['Temp_Ambiente'] = pd.to_numeric(df['Temp_Ambiente'], errors='coerce')
+    
+    if 'Humedad' not in df.columns:
+        df['Humedad'] = np.nan
+    else:
+        df['Humedad'] = pd.to_numeric(df['Humedad'], errors='coerce')
+    
     # Feature Engineering
-    if 'Peso (en kg)' in df_final.columns and 'Altura (en cm)' in df_final.columns:
-        df_final['IMC'] = df_final['Peso (en kg)'] / ((df_final['Altura (en cm)']/100) ** 2)
-    else:
-        df_final['IMC'] = np.nan
-
-    # Normalizar nombre de columna 'Sexo'
-    if 'Sexo' not in df_final.columns:
-        for col in df_final.columns:
-            if col.lower().strip() == 'sexo':
-                df_final = df_final.rename(columns={col: 'Sexo'})
-                break
-
+    # IMC
+    df['IMC'] = df['Peso (en kg)'] / ((df['Altura (en cm)']/100) ** 2)
+    df['IMC'] = df['IMC'].replace([np.inf, -np.inf], np.nan)
+    
+    # Sexo_Num
     le_sexo = LabelEncoder()
-    if 'Sexo' in df_final.columns:
-        df_final['Sexo'] = df_final['Sexo'].fillna('Desconocido')
-        df_final['Sexo_Num'] = le_sexo.fit_transform(df_final['Sexo'])
+    df['Sexo_Num'] = le_sexo.fit_transform(df['Sexo'])
+    
+    # Sueño_Bien
+    if 'Sueño_Col' in df.columns:
+        df['Sueño_Bien'] = df['Sueño_Col'].apply(lambda x: 1 if str(x).strip().lower() in ['si','sí','s'] else 0)
     else:
-        df_final['Sexo'] = 'Desconocido'
-        df_final['Sexo_Num'] = 0
-
-    # Normalizar nombre de columna 'Edad'
-    if 'Edad' not in df_final.columns:
-        for col in df_final.columns:
-            if col.lower().strip() == 'edad':
-                df_final = df_final.rename(columns={col: 'Edad'})
-                break
-
-    if '¿En los últimos 3 días has dormido al menos 7 horas de forma regular?' in df_final.columns:
-        df_final['Sueño_Bien'] = df_final['¿En los últimos 3 días has dormido al menos 7 horas de forma regular?'].apply(lambda x: 1 if str(x).strip().lower() in ['si','sí','s'] else 0)
-    else:
-        df_final['Sueño_Bien'] = 0
-
-    # Deltas térmicos (si existen columnas)
-    if 'T_Max_Post' in df_final.columns and 'T_Max_Basal' in df_final.columns:
-        df_final['Delta_Ejercicio'] = df_final['T_Max_Post'] - df_final['T_Max_Basal']
-    else:
-        df_final['Delta_Ejercicio'] = np.nan
-
-    if 'T_Max_Rec' in df_final.columns and 'T_Max_Post' in df_final.columns:
-        df_final['Delta_Recuperacion'] = df_final['T_Max_Rec'] - df_final['T_Max_Post']
-    else:
-        df_final['Delta_Recuperacion'] = np.nan
-
+        df['Sueño_Bien'] = 0
+    
+    # Deltas (si no existen columnas térmicas específicas, crear NaN)
+    df['Delta_Ejercicio'] = np.nan
+    df['Delta_Recuperacion'] = np.nan
+    
     # Mapeo de fatiga
     mapa_fatiga = {
         'Muy recuperado(a), con energía para entrenar.': 0,
@@ -194,13 +147,17 @@ def cargar_datos():
         'Algo fatigado(a), me falta recuperar un poco más.': 2,
         'Me siento triste y sin energía.': 2
     }
-
-    if '¿Cómo te sientes después del período de recuperación?' in df_final.columns:
-        df_final['Nivel_Fatiga'] = df_final['¿Cómo te sientes después del período de recuperación?'].map(mapa_fatiga).fillna(1)
+    
+    if 'Recuperacion_Col' in df.columns:
+        df['Nivel_Fatiga'] = df['Recuperacion_Col'].map(mapa_fatiga).fillna(1)
     else:
-        df_final['Nivel_Fatiga'] = 1
+        df['Nivel_Fatiga'] = 1
+    
+    # Limpiar columnas temporales
+    df = df.drop(columns=['Sueño_Col', 'Recuperacion_Col'], errors='ignore')
+    
+    return df
 
-    return df_final
 
 df_final = cargar_datos()
 
