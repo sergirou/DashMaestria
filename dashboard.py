@@ -38,9 +38,7 @@ def cargar_datos():
 
     posibles_encuestas = [
         'Monitoreo_de_Fatiga.xlsx',
-        'monitoreo_de_fatiga.xlsx',
-        'cuestionarios.csv',
-        'cuestionarios.xlsx'
+        'monitoreo_de_fatiga.xlsx'
     ]
 
     for f in posibles_encuestas:
@@ -100,12 +98,34 @@ def cargar_datos():
             'Humedad': [14.5, 15.0, 16.2, 14.8, 15.5, 16.0]
         })
 
-    # Normalizar nombres de columna
+    # Normalizar nombres de columna y detectar identificador alternativo
+    # Normalizar lowercase 'folio'
     if 'Folio' not in df_encuesta.columns and 'folio' in df_encuesta.columns:
         df_encuesta = df_encuesta.rename(columns={'folio': 'Folio'})
 
+    # Si no existe 'Folio', intentar detectar otras columnas que representen el ID
+    possible_id_cols = ['Folio', 'ID', 'Id', 'id', 'Codigo', 'codigo', 'Código']
+    if 'Folio' not in df_encuesta.columns:
+        for col in possible_id_cols:
+            if col in df_encuesta.columns:
+                df_encuesta = df_encuesta.rename(columns={col: 'Folio'})
+                st.info(f"Usando columna '{col}' como identificador (renombrada a 'Folio')")
+                break
+
     if 'Folio' not in datos_termicos.columns and 'folio' in datos_termicos.columns:
         datos_termicos = datos_termicos.rename(columns={'folio': 'Folio'})
+
+    if 'Folio' not in datos_termicos.columns:
+        for col in possible_id_cols:
+            if col in datos_termicos.columns:
+                datos_termicos = datos_termicos.rename(columns={col: 'Folio'})
+                st.info(f"Usando columna '{col}' en datos térmicos como identificador (renombrada a 'Folio')")
+                break
+
+    # Si después de esto no hay columna 'Folio' en df_encuesta, emitir advertencia y devolver df_encuesta sin merge
+    if 'Folio' not in df_encuesta.columns:
+        st.error("No se encontró una columna identificadora ('Folio' o equivalente) en los datos de encuesta. Verifica el archivo.")
+        return df_encuesta
 
     df_final = pd.merge(df_encuesta, datos_termicos, on='Folio', how='left')
 
