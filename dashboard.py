@@ -122,6 +122,19 @@ def cargar_datos():
                 st.info(f"Usando columna '{col}' en datos térmicos como identificador (renombrada a 'Folio')")
                 break
 
+    # Mapear columnas ambientales comunes a nombres estándar
+    # Temp_Ambiente: 'Temperatura ambiente', 'Temperatura Ambiente', 'Temp_Ambiente', etc.
+    # Humedad: 'Humedad Relativa', 'Humedad Realtiva', 'Humedad', etc.
+    rename_map = {}
+    for col in datos_termicos.columns:
+        col_lower = col.lower().strip()
+        if 'temperatura' in col_lower and 'ambiente' in col_lower and 'Temp_Ambiente' not in datos_termicos.columns:
+            rename_map[col] = 'Temp_Ambiente'
+        elif ('humedad' in col_lower or 'huedad' in col_lower) and 'Humedad' not in datos_termicos.columns:
+            rename_map[col] = 'Humedad'
+    if rename_map:
+        datos_termicos = datos_termicos.rename(columns=rename_map)
+
     # Si después de esto no hay columna 'Folio' en df_encuesta, emitir advertencia y devolver df_encuesta sin merge
     if 'Folio' not in df_encuesta.columns:
         st.error("No se encontró una columna identificadora ('Folio' o equivalente) en los datos de encuesta. Verifica el archivo.")
