@@ -7,6 +7,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.preprocessing import LabelEncoder
+import os
 
 # =============================================================================
 # CONFIGURACIÓN DE STREAMLIT
@@ -27,67 +28,117 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# =============================================================================
-# TÍTULO Y DESCRIPCIÓN
-# =============================================================================
-st.title("📊 Dashboard de Monitoreo de Fatiga en Ciclistas")
-st.markdown("""
-    Sistema inteligente de análisis de fatiga basado en:
-    - **Encuestas de percepción** (sueño, recuperación)
-    - **Datos térmicos** (termografía infrarroja)
-    - **Machine Learning** (predicción de nivel de fatiga)
-""")
 
-# =============================================================================
-# 1. CARGA DE DATOS
-# =============================================================================
 @st.cache_data
 def cargar_datos():
-    # Datos de encuesta
-    data_dict = {
-        'Folio': ['F-001', 'F-002', 'F-003', 'F-004', 'F-005', 'F-006'],
-        'Edad': [22, 25, 19, 28, 21, 24],
-        'Sexo': ['Masculino', 'Femenino', 'Masculino', 'Femenino', 'Femenino', 'Masculino'],
-        'Altura (en cm)': [175, 162, 180, 158, 165, 172],
-        'Peso (en kg)': [75, 58, 82, 55, 62, 80],
-        '¿En los últimos 3 días has dormido al menos 7 horas de forma regular?': ['Si', 'No', 'Si', 'No', 'No', 'Si'],
-        '¿Cómo te sientes después del período de recuperación?': [
-            'Muy recuperado(a), con energía para entrenar.', 
-            'Recuperado(a), pero aún con algo de fatiga.', 
-            'Muy recuperado(a), con energía para entrenar.',
-            'Muy recuperado(a), con energía para entrenar.',
-            'Muy recuperado(a), con energía para entrenar.',
-            'Algo fatigado(a), me falta recuperar un poco más.'
-        ]
-    }
-    df_encuesta = pd.DataFrame(data_dict)
-    
-    # Datos térmicos
-    datos_termicos = pd.DataFrame({
-        'Folio': ['F-001', 'F-002', 'F-003', 'F-004', 'F-005', 'F-006'],
-        'T_Max_Basal': [34.4, 33.5, 34.0, 33.8, 34.2, 33.9],
-        'T_Max_Post': [34.2, 35.5, 33.8, 35.0, 35.2, 36.1],
-        'T_Max_Rec': [35.3, 34.8, 34.5, 34.5, 34.9, 35.8],
-        'Temp_Ambiente': [11.5, 12.0, 11.8, 12.5, 11.2, 12.1],
-        'Humedad': [14.5, 15.0, 16.2, 14.8, 15.5, 16.0]
-    })
-    
-    # Unir datos
-    df_final = pd.merge(df_encuesta, datos_termicos, on='Folio')
-    
+    """Carga datos de encuesta y térmicos desde archivos si existen.
+    Busca varios nombres comunes y hace fallback a datos de ejemplo.
+    """
+    df_encuesta = None
+
+    posibles_encuestas = [
+        'Monitoreo_de_Fatiga.xlsx',
+        'monitoreo_de_fatiga.xlsx',
+        'cuestionarios.csv',
+        'cuestionarios.xlsx'
+    ]
+
+    for f in posibles_encuestas:
+        if os.path.exists(f):
+            try:
+                if f.lower().endswith('.csv'):
+                    df_encuesta = pd.read_csv(f)
+                else:
+                    df_encuesta = pd.read_excel(f)
+                st.info(f"Cargando datos de encuesta desde: {f}")
+                break
+            except Exception as e:
+                st.warning(f"Error leyendo {f}: {e}")
+
+    if df_encuesta is None:
+        # Datos de ejemplo si no hay archivo
+        data_dict = {
+            'Folio': ['F-001', 'F-002', 'F-003', 'F-004', 'F-005', 'F-006'],
+            'Edad': [22, 25, 19, 28, 21, 24],
+            'Sexo': ['Masculino', 'Femenino', 'Masculino', 'Femenino', 'Femenino', 'Masculino'],
+            'Altura (en cm)': [175, 162, 180, 158, 165, 172],
+            'Peso (en kg)': [75, 58, 82, 55, 62, 80],
+            '¿En los últimos 3 días has dormido al menos 7 horas de forma regular?': ['Si', 'No', 'Si', 'No', 'No', 'Si'],
+            '¿Cómo te sientes después del período de recuperación?': [
+                'Muy recuperado(a), con energía para entrenar.', 
+                'Recuperado(a), pero aún con algo de fatiga.', 
+                'Muy recuperado(a), con energía para entrenar.',
+                'Muy recuperado(a), con energía para entrenar.',
+                'Muy recuperado(a), con energía para entrenar.',
+                'Algo fatigado(a), me falta recuperar un poco más.'
+            ]
+        }
+        df_encuesta = pd.DataFrame(data_dict)
+
+    # Cargar datos térmicos
+    datos_termicos = None
+    posibles_termicos = ['Datos_Termicos.xlsx', 'datos_termicos.xlsx', 'datos_termicos.csv']
+    for f in posibles_termicos:
+        if os.path.exists(f):
+            try:
+                if f.lower().endswith('.csv'):
+                    datos_termicos = pd.read_csv(f)
+                else:
+                    datos_termicos = pd.read_excel(f)
+                st.info(f"Cargando datos térmicos desde: {f}")
+                break
+            except Exception as e:
+                st.warning(f"Error leyendo {f}: {e}")
+
+    if datos_termicos is None:
+        datos_termicos = pd.DataFrame({
+            'Folio': ['F-001', 'F-002', 'F-003', 'F-004', 'F-005', 'F-006'],
+            'T_Max_Basal': [34.4, 33.5, 34.0, 33.8, 34.2, 33.9],
+            'T_Max_Post': [34.2, 35.5, 33.8, 35.0, 35.2, 36.1],
+            'T_Max_Rec': [35.3, 34.8, 34.5, 34.5, 34.9, 35.8],
+            'Temp_Ambiente': [11.5, 12.0, 11.8, 12.5, 11.2, 12.1],
+            'Humedad': [14.5, 15.0, 16.2, 14.8, 15.5, 16.0]
+        })
+
+    # Normalizar nombres de columna
+    if 'Folio' not in df_encuesta.columns and 'folio' in df_encuesta.columns:
+        df_encuesta = df_encuesta.rename(columns={'folio': 'Folio'})
+
+    if 'Folio' not in datos_termicos.columns and 'folio' in datos_termicos.columns:
+        datos_termicos = datos_termicos.rename(columns={'folio': 'Folio'})
+
+    df_final = pd.merge(df_encuesta, datos_termicos, on='Folio', how='left')
+
     # Feature Engineering
-    df_final['IMC'] = df_final['Peso (en kg)'] / ((df_final['Altura (en cm)']/100) ** 2)
-    
+    if 'Peso (en kg)' in df_final.columns and 'Altura (en cm)' in df_final.columns:
+        df_final['IMC'] = df_final['Peso (en kg)'] / ((df_final['Altura (en cm)']/100) ** 2)
+    else:
+        df_final['IMC'] = np.nan
+
     le_sexo = LabelEncoder()
-    df_final['Sexo_Num'] = le_sexo.fit_transform(df_final['Sexo'])
-    
-    df_final['Sueño_Bien'] = df_final['¿En los últimos 3 días has dormido al menos 7 horas de forma regular?'].apply(
-        lambda x: 1 if x == 'Si' else 0
-    )
-    
-    df_final['Delta_Ejercicio'] = df_final['T_Max_Post'] - df_final['T_Max_Basal']
-    df_final['Delta_Recuperacion'] = df_final['T_Max_Rec'] - df_final['T_Max_Post']
-    
+    if 'Sexo' in df_final.columns:
+        df_final['Sexo'] = df_final['Sexo'].fillna('Desconocido')
+        df_final['Sexo_Num'] = le_sexo.fit_transform(df_final['Sexo'])
+    else:
+        df_final['Sexo'] = 'Desconocido'
+        df_final['Sexo_Num'] = 0
+
+    if '¿En los últimos 3 días has dormido al menos 7 horas de forma regular?' in df_final.columns:
+        df_final['Sueño_Bien'] = df_final['¿En los últimos 3 días has dormido al menos 7 horas de forma regular?'].apply(lambda x: 1 if str(x).strip().lower() in ['si','sí','s'] else 0)
+    else:
+        df_final['Sueño_Bien'] = 0
+
+    # Deltas térmicos (si existen columnas)
+    if 'T_Max_Post' in df_final.columns and 'T_Max_Basal' in df_final.columns:
+        df_final['Delta_Ejercicio'] = df_final['T_Max_Post'] - df_final['T_Max_Basal']
+    else:
+        df_final['Delta_Ejercicio'] = np.nan
+
+    if 'T_Max_Rec' in df_final.columns and 'T_Max_Post' in df_final.columns:
+        df_final['Delta_Recuperacion'] = df_final['T_Max_Rec'] - df_final['T_Max_Post']
+    else:
+        df_final['Delta_Recuperacion'] = np.nan
+
     # Mapeo de fatiga
     mapa_fatiga = {
         'Muy recuperado(a), con energía para entrenar.': 0,
@@ -96,9 +147,12 @@ def cargar_datos():
         'Algo fatigado(a), me falta recuperar un poco más.': 2,
         'Me siento triste y sin energía.': 2
     }
-    
-    df_final['Nivel_Fatiga'] = df_final['¿Cómo te sientes después del período de recuperación?'].map(mapa_fatiga).fillna(1)
-    
+
+    if '¿Cómo te sientes después del período de recuperación?' in df_final.columns:
+        df_final['Nivel_Fatiga'] = df_final['¿Cómo te sientes después del período de recuperación?'].map(mapa_fatiga).fillna(1)
+    else:
+        df_final['Nivel_Fatiga'] = 1
+
     return df_final
 
 df_final = cargar_datos()
