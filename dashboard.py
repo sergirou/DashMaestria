@@ -283,43 +283,49 @@ elif pagina == "🌡️ Análisis Térmico":
     
     with col1:
         st.subheader("Temperaturas Máximas por Fase")
-        fig, ax = plt.subplots(figsize=(10, 6))
-        
-        x = np.arange(len(df_final))
-        width = 0.25
-        
-        ax.bar(x - width, df_final['T_Max_Basal'], width, label='Basal (T1)', color='#3498db')
-        ax.bar(x, df_final['T_Max_Post'], width, label='Post-Ejercicio (TF/T3)', color='#e74c3c')
-        ax.bar(x + width, df_final['T_Max_Rec'], width, label='Recuperación (T5)', color='#2ecc71')
-        
-        ax.set_xlabel('Folio')
-        ax.set_ylabel('Temperatura (°C)')
-        ax.set_title('Evolución Térmica por Atleta')
-        ax.set_xticks(x)
-        ax.set_xticklabels(df_final['Folio'])
-        ax.legend()
-        ax.grid(axis='y', alpha=0.3)
-        st.pyplot(fig)
+        # Verificar que las columnas de temperatura máxima existan antes de graficar
+        required_cols = ['T_Max_Basal', 'T_Max_Post', 'T_Max_Rec']
+        if all(c in df_final.columns for c in required_cols):
+            fig, ax = plt.subplots(figsize=(10, 6))
+            x = np.arange(len(df_final))
+            width = 0.25
+            ax.bar(x - width, df_final['T_Max_Basal'], width, label='Basal (T1)', color='#3498db')
+            ax.bar(x, df_final['T_Max_Post'], width, label='Post-Ejercicio (TF/T3)', color='#e74c3c')
+            ax.bar(x + width, df_final['T_Max_Rec'], width, label='Recuperación (T5)', color='#2ecc71')
+            ax.set_xlabel('Folio')
+            ax.set_ylabel('Temperatura (°C)')
+            ax.set_title('Evolución Térmica por Atleta')
+            ax.set_xticks(x)
+            ax.set_xticklabels(df_final['Folio'])
+            ax.legend()
+            ax.grid(axis='y', alpha=0.3)
+            st.pyplot(fig)
+        else:
+            st.warning('No hay columnas de temperaturas máximas (T_Max_Basal/T_Max_Post/T_Max_Rec) en los datos; omitiendo gráfico.')
     
     with col2:
         st.subheader("Delta Térmico (Cambios de Temperatura)")
-        fig, ax = plt.subplots(figsize=(10, 6))
-        
-        x = np.arange(len(df_final))
-        width = 0.35
-        
-        ax.bar(x - width/2, df_final['Delta_Ejercicio'], width, label='Delta Ejercicio', color='#f39c12')
-        ax.bar(x + width/2, df_final['Delta_Recuperacion'], width, label='Delta Recuperación', color='#9b59b6')
-        
-        ax.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
-        ax.set_xlabel('Folio')
-        ax.set_ylabel('Cambio de Temperatura (°C)')
-        ax.set_title('Deltas Térmicos por Atleta')
-        ax.set_xticks(x)
-        ax.set_xticklabels(df_final['Folio'])
-        ax.legend()
-        ax.grid(axis='y', alpha=0.3)
-        st.pyplot(fig)
+        # Verificar que existan las columnas de delta antes de graficar
+        if 'Delta_Ejercicio' in df_final.columns or 'Delta_Recuperacion' in df_final.columns:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            x = np.arange(len(df_final))
+            width = 0.35
+            # Usar columnas si existen, en otro caso crear serie de NaN
+            de = df_final['Delta_Ejercicio'] if 'Delta_Ejercicio' in df_final.columns else np.nan
+            dr = df_final['Delta_Recuperacion'] if 'Delta_Recuperacion' in df_final.columns else np.nan
+            ax.bar(x - width/2, de, width, label='Delta Ejercicio', color='#f39c12')
+            ax.bar(x + width/2, dr, width, label='Delta Recuperación', color='#9b59b6')
+            ax.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
+            ax.set_xlabel('Folio')
+            ax.set_ylabel('Cambio de Temperatura (°C)')
+            ax.set_title('Deltas Térmicos por Atleta')
+            ax.set_xticks(x)
+            ax.set_xticklabels(df_final['Folio'])
+            ax.legend()
+            ax.grid(axis='y', alpha=0.3)
+            st.pyplot(fig)
+        else:
+            st.warning('No hay columnas de Delta térmico en los datos; omitiendo gráfico.')
     
     # Condiciones ambientales
     st.divider()
@@ -351,66 +357,79 @@ elif pagina == "🌡️ Análisis Térmico":
 elif pagina == "🤖 Predicción de Fatiga":
     st.header("🤖 Modelo de Predicción de Fatiga")
     
-    # Entrenar modelo
-    features = [
+    # Entrenar modelo (usar sólo las características disponibles)
+    candidate_features = [
         'Edad', 'Sexo_Num', 'IMC', 'Sueño_Bien',
         'T_Max_Basal', 'Delta_Ejercicio', 'Delta_Recuperacion',
         'Temp_Ambiente', 'Humedad'
     ]
-    
-    X = df_final[features]
-    y = df_final['Nivel_Fatiga']
-    
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-    
-    model = RandomForestClassifier(n_estimators=100, random_state=42)
-    model.fit(X_train, y_train)
-    
-    y_pred = model.predict(X_test)
-    
+    features = [f for f in candidate_features if f in df_final.columns]
+
+    trained = False
+    if len(features) == 0:
+        st.warning('No hay características disponibles para entrenar el modelo.')
+    else:
+        X = df_final[features]
+        y = df_final['Nivel_Fatiga'] if 'Nivel_Fatiga' in df_final.columns else None
+
+        if y is None or len(y.unique()) < 2:
+            st.warning('No hay suficientes etiquetas para entrenar el modelo (se requieren >=2 clases).')
+        else:
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+            model = RandomForestClassifier(n_estimators=100, random_state=42)
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
+            trained = True
+
     # Importancia de variables
     col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("Importancia de Factores")
-        importances = pd.Series(model.feature_importances_, index=features).sort_values(ascending=True)
-        
-        fig, ax = plt.subplots(figsize=(8, 6))
-        importances.plot(kind='barh', ax=ax, color='#3498db')
-        ax.set_xlabel('Importancia')
-        ax.set_title('Factores que Predicen Fatiga')
-        st.pyplot(fig)
-    
-    with col2:
-        st.subheader("Matriz de Confusión")
-        cm = confusion_matrix(y_test, y_pred)
-        
-        fig, ax = plt.subplots(figsize=(8, 6))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax, cbar=False)
-        ax.set_xlabel('Predicción')
-        ax.set_ylabel('Real')
-        ax.set_title('Matriz de Confusión')
-        st.pyplot(fig)
-    
-    # Predicciones
-    st.divider()
-    st.subheader("Predicciones del Modelo")
-    
-    predicciones_df = pd.DataFrame({
-        'Folio': df_final.loc[X_test.index, 'Folio'].values,
-        'Predicción': y_pred,
-        'Real': y_test.values,
-        'Correcto': y_pred == y_test.values
-    })
-    
-    predicciones_df['Predicción'] = predicciones_df['Predicción'].map({0: '🟢 Bien', 1: '🟡 Moderado', 2: '🔴 Fatigado'})
-    predicciones_df['Real'] = predicciones_df['Real'].map({0: '🟢 Bien', 1: '🟡 Moderado', 2: '🔴 Fatigado'})
-    
-    st.dataframe(predicciones_df, use_container_width=True)
-    
-    # Precisión del modelo
-    precision = (y_pred == y_test.values).sum() / len(y_test)
-    st.metric("Precisión del Modelo", f"{precision:.0%}")
+
+    if trained:
+        with col1:
+            st.subheader("Importancia de Factores")
+            importances = pd.Series(model.feature_importances_, index=features).sort_values(ascending=True)
+
+            fig, ax = plt.subplots(figsize=(8, 6))
+            importances.plot(kind='barh', ax=ax, color='#3498db')
+            ax.set_xlabel('Importancia')
+            ax.set_title('Factores que Predicen Fatiga')
+            st.pyplot(fig)
+
+        with col2:
+            st.subheader("Matriz de Confusión")
+            cm = confusion_matrix(y_test, y_pred)
+
+            fig, ax = plt.subplots(figsize=(8, 6))
+            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax, cbar=False)
+            ax.set_xlabel('Predicción')
+            ax.set_ylabel('Real')
+            ax.set_title('Matriz de Confusión')
+            st.pyplot(fig)
+
+        # Predicciones
+        st.divider()
+        st.subheader("Predicciones del Modelo")
+
+        predicciones_df = pd.DataFrame({
+            'Folio': df_final.loc[X_test.index, 'Folio'].values,
+            'Predicción': y_pred,
+            'Real': y_test.values,
+            'Correcto': y_pred == y_test.values
+        })
+
+        predicciones_df['Predicción'] = predicciones_df['Predicción'].map({0: '🟢 Bien', 1: '🟡 Moderado', 2: '🔴 Fatigado'})
+        predicciones_df['Real'] = predicciones_df['Real'].map({0: '🟢 Bien', 1: '🟡 Moderado', 2: '🔴 Fatigado'})
+
+        st.dataframe(predicciones_df, use_container_width=True)
+
+        # Precisión del modelo
+        precision = (y_pred == y_test.values).sum() / len(y_test)
+        st.metric("Precisión del Modelo", f"{precision:.0%}")
+    else:
+        with col1:
+            st.info('Modelo no entrenado — no hay suficientes datos o características.')
+        with col2:
+            st.info('Modelo no entrenado — no hay suficientes datos o características.')
     
     # Interpretación
     st.divider()
